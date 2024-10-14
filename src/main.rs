@@ -35,9 +35,9 @@ use html2md::parse_html;
 use log::*;
 use serde::Deserialize;
 use serde_xml_rs::from_reader;
-use std::collections::HashSet;
+//use std::collections::HashSet;
 use std::env::args;
-use std::fs::create_dir_all;
+//use std::fs::create_dir_all;
 use std::fs::File;
 use std::io::{Read, Result, Write};
 use std::path::{Path, PathBuf};
@@ -45,7 +45,7 @@ use transform_html::transform_html;
 
 /// Paginate section by this number of posts.
 /// TODO: make configurable
-const PAGINATE_BY: usize = 5;
+//const PAGINATE_BY: usize = 5;
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -72,7 +72,7 @@ fn convert(input_file: PathBuf, output_dir: PathBuf, fs: &impl Fs) -> Result<()>
 
     // We will make `_index.md` for every top level section we will
     // find. This set is used to only do that once per section.
-    let mut sections = HashSet::new();
+    //let mut sections = HashSet::new();
 
     for item in rss.channel.item {
         match item.status {
@@ -81,18 +81,23 @@ fn convert(input_file: PathBuf, output_dir: PathBuf, fs: &impl Fs) -> Result<()>
         }
         match item.post_type {
             PostType::Post => {
-                let path = output_dir.join(generate_path(&base_url, &item.link));
-                info!("Post [{:?}] {} -> {:?}", item.status, item.title, &path);
+                let (file_path, path) = generate_path(&base_url, &item.link);
+                let file_path = output_dir.join(file_path);
+                info!(
+                    "Post [{:?}] {} -> {:?}",
+                    item.status, item.title, &file_path
+                );
 
-                let section = path.parent().expect("no parent in filename");
-                // ensure all directories are in place
-                debug!("Creating directory {:?}", section);
-                fs.create_dir_all(&path.parent().expect("no parent in filename"))?;
+                // TODO: create sections for each date subdir, so we can have pages there?
+                //let section = file_path.parent().expect("no parent in filename");
+                //// ensure all directories are in place
+                //debug!("Creating directory {:?}", section);
+                //fs.create_dir_all(&file_path.parent().expect("no parent in filename"))?;
 
-                // if it's the first time we see this section, create section file
-                if sections.insert(section.to_owned()) {
-                    fs.create_section(section)?;
-                }
+                //// if it's the first time we see this section, create section file
+                //if sections.insert(section.to_owned()) {
+                //    fs.create_section(section)?;
+                //}
 
                 let date =
                     DateTime::parse_from_rfc2822(&item.pub_date).expect("cannot parse pubDate");
@@ -101,7 +106,13 @@ fn convert(input_file: PathBuf, output_dir: PathBuf, fs: &impl Fs) -> Result<()>
                 let markdown = parse_html(&html);
                 let markdown = markdown.replace("[]()", "");
 
-                fs.create_page(&path, &item.title.replace('"', "\\\""), date, &markdown)?;
+                fs.create_page(
+                    &file_path,
+                    &item.title.replace('"', "\\\""),
+                    date,
+                    &path,
+                    &markdown,
+                )?;
             }
             PostType::Attachment => debug!("Ignoring attachment {}", item.title),
             _ => debug!("Ignoring unknown post type {}", item.title),
@@ -166,19 +177,20 @@ enum Status {
 trait Fs {
     fn open(&self, path: &PathBuf) -> Result<impl Read>;
 
-    fn create_dir_all<P>(&self, path: P) -> Result<()>
-    where
-        P: AsRef<Path>;
+    //fn create_dir_all<P>(&self, path: P) -> Result<()>
+    //where
+    //    P: AsRef<Path>;
 
     fn create_page(
         &self,
-        path: &Path,
+        file_path: &Path,
         title: &str,
         date: DateTime<FixedOffset>,
+        path: &str,
         markdown: &str,
     ) -> Result<()>;
 
-    fn create_section(&self, section: &Path) -> Result<()>;
+    //fn create_section(&self, section: &Path) -> Result<()>;
 }
 
 struct RealFs {}
@@ -188,50 +200,52 @@ impl Fs for RealFs {
         File::open(path)
     }
 
-    fn create_dir_all<P>(&self, path: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        create_dir_all(path)
-    }
+    //fn create_dir_all<P>(&self, path: P) -> Result<()>
+    //where
+    //    P: AsRef<Path>,
+    //{
+    //    create_dir_all(path)
+    //}
 
     /// Create post file
     fn create_page(
         &self,
-        path: &Path,
+        file_path: &Path,
         title: &str,
         date: DateTime<FixedOffset>,
+        path: &str,
         markdown: &str,
     ) -> Result<()> {
-        let mut file = File::create(path)?;
+        let mut file = File::create(file_path)?;
         // write front-matter
         writeln!(file, "+++")?;
         writeln!(file, "title = \"{}\"", title)?;
         writeln!(file, "date = {}", date.to_rfc3339())?;
+        writeln!(file, r#"path = "{}""#, path)?;
         writeln!(file, "+++")?;
         // and content
         writeln!(file, "{}", markdown)?;
         Ok(())
     }
 
-    /// Create section `_index.md` file.
-    fn create_section(&self, section: &Path) -> Result<()> {
-        let mut file = File::create(section.join("_index.md"))?;
-        writeln!(file, "+++")?;
-        writeln!(file, "transparent = true")?; // show pages from this section in index.html
-        writeln!(file, "sort_by = \"date\"")?;
-        writeln!(file, "paginate_by = {}", PAGINATE_BY)?;
-        writeln!(file, "+++")?;
-        Ok(())
-    }
+    ///// Create section `_index.md` file.
+    //fn create_section(&self, section: &Path) -> Result<()> {
+    //    let mut file = File::create(section.join("_index.md"))?;
+    //    writeln!(file, "+++")?;
+    //    writeln!(file, "transparent = true")?; // show pages from this section in index.html
+    //    writeln!(file, "sort_by = \"date\"")?;
+    //    writeln!(file, "paginate_by = {}", PAGINATE_BY)?;
+    //    writeln!(file, "+++")?;
+    //    Ok(())
+    //}
 }
 
 /// Generate path for an item by splicing base url from the link.
-fn generate_path(base_url: &str, link: &str) -> PathBuf {
-    PathBuf::from(format!(
-        "{}.md",
-        link.trim_start_matches(&base_url).trim_matches('/')
-    ))
+fn generate_path(base_url: &str, link: &str) -> (PathBuf, String) {
+    let path = link.trim_start_matches(&base_url).trim_matches('/');
+    let file_path = PathBuf::from(format!("{}.md", path.replace("/", "-")));
+
+    (file_path, path.to_owned())
 }
 
 #[cfg(test)]
@@ -263,36 +277,37 @@ mod tests {
             Ok(self.input.as_bytes())
         }
 
-        fn create_dir_all<P>(&self, path: P) -> std::io::Result<()>
-        where
-            P: AsRef<std::path::Path>,
-        {
-            self.calls
-                .borrow_mut()
-                .push(format!("create_dir_all({:?})", path.as_ref()));
-            Ok(())
-        }
+        //fn create_dir_all<P>(&self, path: P) -> std::io::Result<()>
+        //where
+        //    P: AsRef<std::path::Path>,
+        //{
+        //    self.calls
+        //        .borrow_mut()
+        //        .push(format!("create_dir_all({:?})", path.as_ref()));
+        //    Ok(())
+        //}
 
         fn create_page(
             &self,
-            path: &std::path::Path,
+            file_path: &std::path::Path,
             title: &str,
             date: chrono::DateTime<chrono::FixedOffset>,
+            path: &str,
             markdown: &str,
         ) -> std::io::Result<()> {
             self.calls.borrow_mut().push(format!(
-                "create_page({:?}, {}, {}, {})",
-                path, title, date, markdown
+                "create_page({:?}, {}, {}, {}, {})",
+                file_path, title, date, path, markdown
             ));
             Ok(())
         }
 
-        fn create_section(&self, section: &std::path::Path) -> std::io::Result<()> {
-            self.calls
-                .borrow_mut()
-                .push(format!("create_section({:?})", section));
-            Ok(())
-        }
+        //fn create_section(&self, section: &std::path::Path) -> std::io::Result<()> {
+        //    self.calls
+        //        .borrow_mut()
+        //        .push(format!("create_section({:?})", section));
+        //    Ok(())
+        //}
     }
 
     #[test]
@@ -310,7 +325,7 @@ mod tests {
                     <title>Post 1</title>
                     <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
                     <description></description>
-                    <link>http://example.com/post1</link>
+                    <link>https://example.com/2024/04/07/post1</link>
                     <content:encoded><![CDATA[]]></content:encoded>
                     <wp:post_type><![CDATA[post]]></wp:post_type>
                     <wp:status><![CDATA[publish]]></wp:status>
@@ -327,12 +342,13 @@ mod tests {
         assert_eq!(
             fs.calls(),
             &[
-                "create_dir_all(\"output/http://example.com\")",
-                "create_section(\"output/http://example.com\")",
+                //"create_dir_all(\"output/http://example.com\")",
+                //"create_section(\"output/http://example.com\")",
                 "create_page(\
-                    \"output/http://example.com/post1.md\", \
+                    \"output/2024-04-07-post1.md\", \
                     Post 1, \
                     2008-09-01 21:02:27 +00:00, \
+                    2024/04/07/post1, \
                 )",
             ]
         );
@@ -353,7 +369,7 @@ mod tests {
                     <title>Post 1</title>
                     <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
                     <description></description>
-                    <link>http://example.com/post1</link>
+                    <link>https://example.com/2024/04/07/post1</link>
                     <content:encoded><![CDATA[]]></content:encoded>
                     <wp:post_type><![CDATA[wpcode]]></wp:post_type>
                     <wp:status><![CDATA[publish]]></wp:status>
@@ -385,7 +401,7 @@ mod tests {
                     <title>Post "1"</title>
                     <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
                     <description></description>
-                    <link>http://example.com/post1</link>
+                    <link>https://example.com/2024/04/07/post1</link>
                     <content:encoded><![CDATA[]]></content:encoded>
                     <wp:post_type><![CDATA[post]]></wp:post_type>
                     <wp:status><![CDATA[publish]]></wp:status>
@@ -402,12 +418,13 @@ mod tests {
         assert_eq!(
             fs.calls(),
             &[
-                "create_dir_all(\"output/http://example.com\")",
-                "create_section(\"output/http://example.com\")",
+                //"create_dir_all(\"output/http://example.com\")",
+                //"create_section(\"output/http://example.com\")",
                 "create_page(\
-                    \"output/http://example.com/post1.md\", \
+                    \"output/2024-04-07-post1.md\", \
                     Post \\\"1\\\", \
                     2008-09-01 21:02:27 +00:00, \
+                    2024/04/07/post1, \
                 )",
             ]
         );
@@ -428,7 +445,7 @@ mod tests {
                     <title>Post "1"</title>
                     <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
                     <description></description>
-                    <link>http://example.com/post1</link>
+                    <link>https://example.com/2024/04/07/post1</link>
                     <content:encoded><![CDATA[Foo []() Bar]]></content:encoded>
                     <wp:post_type><![CDATA[post]]></wp:post_type>
                     <wp:status><![CDATA[publish]]></wp:status>
@@ -445,12 +462,13 @@ mod tests {
         assert_eq!(
             fs.calls(),
             &[
-                "create_dir_all(\"output/http://example.com\")",
-                "create_section(\"output/http://example.com\")",
+                //"create_dir_all(\"output/http://example.com\")",
+                //"create_section(\"output/http://example.com\")",
                 "create_page(\
-                    \"output/http://example.com/post1.md\", \
+                    \"output/2024-04-07-post1.md\", \
                     Post \\\"1\\\", \
                     2008-09-01 21:02:27 +00:00, \
+                    2024/04/07/post1, \
                     Foo  Bar\
                 )",
             ]
@@ -472,7 +490,7 @@ mod tests {
                     <title>Post "1"</title>
                     <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
                     <description></description>
-                    <link>http://example.com/post1</link>
+                    <link>https://example.com/2024/04/07/post1</link>
                     <content:encoded><![CDATA[para a
 
 para b]]></content:encoded>
@@ -491,12 +509,13 @@ para b]]></content:encoded>
         assert_eq!(
             fs.calls(),
             &[
-                "create_dir_all(\"output/http://example.com\")",
-                "create_section(\"output/http://example.com\")",
+                //"create_dir_all(\"output/http://example.com\")",
+                //"create_section(\"output/http://example.com\")",
                 "create_page(\
-                    \"output/http://example.com/post1.md\", \
+                    \"output/2024-04-07-post1.md\", \
                     Post \\\"1\\\", \
                     2008-09-01 21:02:27 +00:00, \
+                    2024/04/07/post1, \
                     para a\n\npara b\
                 )",
             ]
