@@ -28,6 +28,8 @@
 //!
 //! [zola][https://www.getzola.org/]
 
+mod transform_html;
+
 use chrono::{DateTime, FixedOffset};
 use html2md::parse_html;
 use log::*;
@@ -39,6 +41,7 @@ use std::fs::create_dir_all;
 use std::fs::File;
 use std::io::{Read, Result, Write};
 use std::path::{Path, PathBuf};
+use transform_html::transform_html;
 
 /// Paginate section by this number of posts.
 /// TODO: make configurable
@@ -94,9 +97,9 @@ fn convert(input_file: PathBuf, output_dir: PathBuf, fs: &impl Fs) -> Result<()>
                 let date =
                     DateTime::parse_from_rfc2822(&item.pub_date).expect("cannot parse pubDate");
 
-                let markdown = parse_html(item.content());
+                let html = transform_html(item.content());
+                let markdown = parse_html(&html);
                 let markdown = markdown.replace("[]()", "");
-                debug!("{}", markdown);
 
                 fs.create_page(&path, &item.title.replace('"', "\\\""), date, &markdown)?;
             }
@@ -449,6 +452,52 @@ mod tests {
                     Post \\\"1\\\", \
                     2008-09-01 21:02:27 +00:00, \
                     Foo  Bar\
+                )",
+            ]
+        );
+    }
+
+    #[test]
+    fn paragraphs_are_separated() {
+        // Given a blog item with two paragraphs
+        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
+            <rss version="2.0"
+                xmlns:content="http://purl.org/rss/1.0/modules/content/"
+                xmlns:wp="http://wordpress.org/export/1.2/"
+            >
+            <channel>
+                <title>Blog</title>
+                <wp:base_site_url>https://example.com</wp:base_site_url>
+                <item>
+                    <title>Post "1"</title>
+                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
+                    <description></description>
+                    <link>http://example.com/post1</link>
+                    <content:encoded><![CDATA[para a
+
+para b]]></content:encoded>
+                    <wp:post_type><![CDATA[post]]></wp:post_type>
+                    <wp:status><![CDATA[publish]]></wp:status>
+                </item>
+            </channel>
+        </rss>
+        "#;
+
+        // When we convert it
+        let fs = FakeFs::new(input);
+        convert("".into(), "output".into(), &fs).unwrap();
+
+        // Then the created post contains separate paragraphs
+        assert_eq!(
+            fs.calls(),
+            &[
+                "create_dir_all(\"output/http://example.com\")",
+                "create_section(\"output/http://example.com\")",
+                "create_page(\
+                    \"output/http://example.com/post1.md\", \
+                    Post \\\"1\\\", \
+                    2008-09-01 21:02:27 +00:00, \
+                    para a\n\npara b\
                 )",
             ]
         );
