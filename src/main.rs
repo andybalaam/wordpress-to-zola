@@ -260,9 +260,9 @@ mod tests {
     }
 
     impl FakeFs {
-        fn new(input: &str) -> Self {
+        fn new(input: String) -> Self {
             Self {
-                input: input.to_owned(),
+                input,
                 calls: RefCell::new(Vec::new()),
             }
         }
@@ -313,26 +313,7 @@ mod tests {
     #[test]
     fn normal_posts_are_converted() {
         // Given a WP export with a post in it
-        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0"
-                xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                xmlns:wp="http://wordpress.org/export/1.2/"
-            >
-            <channel>
-                <title>Blog</title>
-                <wp:base_site_url>https://example.com</wp:base_site_url>
-                <item>
-                    <title>Post 1</title>
-                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
-                    <description></description>
-                    <link>https://example.com/2024/04/07/post1</link>
-                    <content:encoded><![CDATA[]]></content:encoded>
-                    <wp:post_type><![CDATA[post]]></wp:post_type>
-                    <wp:status><![CDATA[publish]]></wp:status>
-                </item>
-            </channel>
-        </rss>
-        "#;
+        let input = rss(&[TestPost::default()]);
 
         // When we convert it
         let fs = FakeFs::new(input);
@@ -346,9 +327,10 @@ mod tests {
                 //"create_section(\"output/http://example.com\")",
                 "create_page(\
                     \"output/2024-04-07-post1.md\", \
-                    Post 1, \
+                    Post title, \
                     2008-09-01 21:02:27 +00:00, \
                     2024/04/07/post1, \
+                    Post content\
                 )",
             ]
         );
@@ -356,27 +338,8 @@ mod tests {
 
     #[test]
     fn unknown_post_types_are_ignored() {
-        // Given a blog item wpcode post_tyoe
-        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0"
-                xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                xmlns:wp="http://wordpress.org/export/1.2/"
-            >
-            <channel>
-                <title>Blog</title>
-                <wp:base_site_url>https://example.com</wp:base_site_url>
-                <item>
-                    <title>Post 1</title>
-                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
-                    <description></description>
-                    <link>https://example.com/2024/04/07/post1</link>
-                    <content:encoded><![CDATA[]]></content:encoded>
-                    <wp:post_type><![CDATA[wpcode]]></wp:post_type>
-                    <wp:status><![CDATA[publish]]></wp:status>
-                </item>
-            </channel>
-        </rss>
-        "#;
+        // Given a blog item wpcode post_type
+        let input = rss(&[TestPost::with_post_type("wpcode")]);
 
         // When we convert it
         let fs = FakeFs::new(input);
@@ -389,26 +352,7 @@ mod tests {
     #[test]
     fn quotes_in_titles_are_escaped() {
         // Given a blog item with quotes in its title
-        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0"
-                xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                xmlns:wp="http://wordpress.org/export/1.2/"
-            >
-            <channel>
-                <title>Blog</title>
-                <wp:base_site_url>https://example.com</wp:base_site_url>
-                <item>
-                    <title>Post "1"</title>
-                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
-                    <description></description>
-                    <link>https://example.com/2024/04/07/post1</link>
-                    <content:encoded><![CDATA[]]></content:encoded>
-                    <wp:post_type><![CDATA[post]]></wp:post_type>
-                    <wp:status><![CDATA[publish]]></wp:status>
-                </item>
-            </channel>
-        </rss>
-        "#;
+        let input = rss(&[TestPost::with_title(r#"Post "1""#)]);
 
         // When we convert it
         let fs = FakeFs::new(input);
@@ -425,6 +369,7 @@ mod tests {
                     Post \\\"1\\\", \
                     2008-09-01 21:02:27 +00:00, \
                     2024/04/07/post1, \
+                    Post content\
                 )",
             ]
         );
@@ -433,26 +378,7 @@ mod tests {
     #[test]
     fn empty_links_are_removed() {
         // Given a blog item with empty links
-        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0"
-                xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                xmlns:wp="http://wordpress.org/export/1.2/"
-            >
-            <channel>
-                <title>Blog</title>
-                <wp:base_site_url>https://example.com</wp:base_site_url>
-                <item>
-                    <title>Post "1"</title>
-                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
-                    <description></description>
-                    <link>https://example.com/2024/04/07/post1</link>
-                    <content:encoded><![CDATA[Foo []() Bar]]></content:encoded>
-                    <wp:post_type><![CDATA[post]]></wp:post_type>
-                    <wp:status><![CDATA[publish]]></wp:status>
-                </item>
-            </channel>
-        </rss>
-        "#;
+        let input = rss(&[TestPost::with_content("Foo []() Bar")]);
 
         // When we convert it
         let fs = FakeFs::new(input);
@@ -466,7 +392,7 @@ mod tests {
                 //"create_section(\"output/http://example.com\")",
                 "create_page(\
                     \"output/2024-04-07-post1.md\", \
-                    Post \\\"1\\\", \
+                    Post title, \
                     2008-09-01 21:02:27 +00:00, \
                     2024/04/07/post1, \
                     Foo  Bar\
@@ -478,28 +404,7 @@ mod tests {
     #[test]
     fn paragraphs_are_separated() {
         // Given a blog item with two paragraphs
-        let input = r#"<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0"
-                xmlns:content="http://purl.org/rss/1.0/modules/content/"
-                xmlns:wp="http://wordpress.org/export/1.2/"
-            >
-            <channel>
-                <title>Blog</title>
-                <wp:base_site_url>https://example.com</wp:base_site_url>
-                <item>
-                    <title>Post "1"</title>
-                    <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
-                    <description></description>
-                    <link>https://example.com/2024/04/07/post1</link>
-                    <content:encoded><![CDATA[para a
-
-para b]]></content:encoded>
-                    <wp:post_type><![CDATA[post]]></wp:post_type>
-                    <wp:status><![CDATA[publish]]></wp:status>
-                </item>
-            </channel>
-        </rss>
-        "#;
+        let input = rss(&[TestPost::with_content("para a\n\npara b")]);
 
         // When we convert it
         let fs = FakeFs::new(input);
@@ -513,12 +418,91 @@ para b]]></content:encoded>
                 //"create_section(\"output/http://example.com\")",
                 "create_page(\
                     \"output/2024-04-07-post1.md\", \
-                    Post \\\"1\\\", \
+                    Post title, \
                     2008-09-01 21:02:27 +00:00, \
                     2024/04/07/post1, \
                     para a\n\npara b\
                 )",
             ]
         );
+    }
+
+    struct TestPost<'a> {
+        title: &'a str,
+        content: &'a str,
+        post_type: &'a str,
+        status: &'a str,
+    }
+
+    impl<'a> Default for TestPost<'a> {
+        fn default() -> Self {
+            Self {
+                title: "Post title",
+                content: "Post content",
+                post_type: "post",
+                status: "publish",
+            }
+        }
+    }
+
+    impl<'a> TestPost<'a> {
+        fn with_status(status: &'a str) -> Self {
+            let mut ret = Self::default();
+            ret.status = status;
+            ret
+        }
+
+        fn with_content(content: &'a str) -> Self {
+            let mut ret = Self::default();
+            ret.content = content;
+            ret
+        }
+
+        fn with_title(title: &'a str) -> Self {
+            let mut ret = Self::default();
+            ret.title = title;
+            ret
+        }
+
+        fn with_post_type(post_type: &'a str) -> Self {
+            let mut ret = Self::default();
+            ret.post_type = post_type;
+            ret
+        }
+    }
+
+    fn rss(posts: &[TestPost]) -> String {
+        let p = itertools::join(
+            posts.iter().map(|p| {
+                format!(
+                    "<item>
+                        <title>{}</title>
+                        <pubDate>Mon, 01 Sep 2008 21:02:27 +0000</pubDate>
+                        <description></description>
+                        <link>https://example.com/2024/04/07/post1</link>
+                        <content:encoded><![CDATA[{}]]></content:encoded>
+                        <wp:post_type><![CDATA[{}]]></wp:post_type>
+                        <wp:status><![CDATA[{}]]></wp:status>
+                    </item>",
+                    p.title, p.content, p.post_type, p.status
+                )
+            }),
+            "\n",
+        );
+
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8" ?>
+            <rss version="2.0"
+                xmlns:content="http://purl.org/rss/1.0/modules/content/"
+                xmlns:wp="http://wordpress.org/export/1.2/"
+            >
+            <channel>
+                <title>Blog</title>
+                <wp:base_site_url>https://example.com</wp:base_site_url>
+                {p}
+            </channel>
+        </rss>
+        "#
+        )
     }
 }
