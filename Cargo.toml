@@ -9,7 +9,7 @@ serde-xml-rs = "0.3.1"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4.6"
 env_logger = "0.6.1"
-html2md = { git = "https://gitlab.com/andybalaam/html2md", branch = "emit-unsupported-img-tags-literally" }
+html2md = { git = "https://gitlab.com/andybalaam/html2md", rev = "0983a8abc49fdb2a52d8346a6ee582910214e510" }
 chrono = {version = "0.4.6", features = ["serde"]}
 html5ever = "0.26.0"
 markup5ever_rcdom = "0.2.0"

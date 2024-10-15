@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "html2md"
 version = "0.2.14"
-source = "git+https://gitlab.com/andybalaam/html2md?branch=emit-unsupported-img-tags-literally#3764257a2b394b7c55a27ec7c5afb54c0be9b561"
+source = "git+https://gitlab.com/andybalaam/html2md?rev=0983a8abc49fdb2a52d8346a6ee582910214e510#0983a8abc49fdb2a52d8346a6ee582910214e510"
 dependencies = [
  "html5ever",
  "jni",
