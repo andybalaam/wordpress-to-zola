@@ -172,6 +172,7 @@ enum Status {
     Draft,
     Inherit,
     Private,
+    Trash,
 }
 
 trait Fs {
@@ -425,6 +426,19 @@ mod tests {
                 )",
             ]
         );
+    }
+
+    #[test]
+    fn trashed_posts_are_ignored() {
+        // Given a blog item that has trash status
+        let input = rss(&[TestPost::with_status("trash")]);
+
+        // When we convert it
+        let fs = FakeFs::new(input);
+        convert("".into(), "output".into(), &fs).unwrap();
+
+        // Then no post is created
+        assert_eq!(fs.calls().len(), 0);
     }
 
     struct TestPost<'a> {
