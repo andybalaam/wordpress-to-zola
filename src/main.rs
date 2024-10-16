@@ -112,6 +112,7 @@ fn convert(input_file: PathBuf, output_dir: PathBuf, fs: &impl Fs) -> Result<()>
                     date,
                     &path,
                     &markdown,
+                    item.category,
                 )?;
             }
             PostType::Attachment => debug!("Ignoring attachment {}", item.title),
@@ -144,6 +145,7 @@ struct Item {
     post_type: PostType,
     encoded: Vec<String>,
     status: Status,
+    category: Option<Vec<Category>>,
 }
 
 impl Item {
@@ -154,6 +156,13 @@ impl Item {
     fn content(&self) -> &str {
         &self.encoded[0]
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct Category {
+    domain: Option<String>,
+    #[serde(rename = "$value")]
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -172,6 +181,7 @@ enum Status {
     Draft,
     Inherit,
     Private,
+    Trash,
 }
 
 trait Fs {
@@ -188,6 +198,7 @@ trait Fs {
         date: DateTime<FixedOffset>,
         path: &str,
         markdown: &str,
+        category: Option<Vec<Category>>,
     ) -> Result<()>;
 
     //fn create_section(&self, section: &Path) -> Result<()>;
@@ -215,6 +226,7 @@ impl Fs for RealFs {
         date: DateTime<FixedOffset>,
         path: &str,
         markdown: &str,
+        category: Option<Vec<Category>>,
     ) -> Result<()> {
         let mut file = File::create(file_path)?;
         // write front-matter
@@ -252,7 +264,7 @@ fn generate_path(base_url: &str, link: &str) -> (PathBuf, String) {
 mod tests {
     use std::cell::RefCell;
 
-    use crate::{convert, Fs};
+    use crate::{convert, Category, Fs};
 
     struct FakeFs {
         input: String,
@@ -294,10 +306,11 @@ mod tests {
             date: chrono::DateTime<chrono::FixedOffset>,
             path: &str,
             markdown: &str,
+            category: Option<Vec<Category>>,
         ) -> std::io::Result<()> {
             self.calls.borrow_mut().push(format!(
-                "create_page({:?}, {}, {}, {}, {})",
-                file_path, title, date, path, markdown
+                "create_page({:?}, {}, {}, {}, {}, {:?})",
+                file_path, title, date, path, markdown, category
             ));
             Ok(())
         }
@@ -349,6 +362,10 @@ mod tests {
                     Post 1, \
                     2008-09-01 21:02:27 +00:00, \
                     2024/04/07/post1, \
+                    Some(Category { \
+                        domain = Some( \"category\" ), \
+                        name = \"Rust\" \
+                    }) \
                 )",
             ]
         );
@@ -496,6 +513,7 @@ mod tests {
 para b]]></content:encoded>
                     <wp:post_type><![CDATA[post]]></wp:post_type>
                     <wp:status><![CDATA[publish]]></wp:status>
+                    <category domain="category"><![CDATA[Rust]]></category>
                 </item>
             </channel>
         </rss>
